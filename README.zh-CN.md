@@ -16,6 +16,12 @@
 - 通过 USB 串口连接的 Arduino 交通灯 LED 模块
 - 启动桥接前请关闭 Arduino IDE 的串口监视器
 
+### 硬件
+
+本项目代码基于 Arduino 实现。现在硬件发展很快，推荐使用 **ESP32 开发板** + **红绿灯 LED 模块** 来替代，成本更低、功能更强。你可以让 AI Agent 参考本项目代码，适当修改即可适配 ESP32。
+
+![硬件购买清单](images/list.png)
+
 ## 快速开始
 
 ### 1. 启动桥接服务
@@ -88,6 +94,12 @@ Claude Code hooks ──> hook-client.mjs ──TCP──> serial-bridge.mjs ─
 - **hook-client.mjs** — 即发即忘的 TCP 客户端，发送单条命令后退出。
 - **serial-bridge.mjs** — 常驻 TCP 服务器，将命令转发到串口。
 - **lib/commands.mjs** — 共享的命令解析与校验逻辑。
+
+## 详细教程
+
+在微信公众号「**阿皓AI**」查看完整图文教程，搜索关注即可。
+
+![微信公众号：阿皓AI](images/ahao.png)
 
 ## 许可证
 

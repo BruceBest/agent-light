@@ -16,6 +16,10 @@ Turn an Arduino traffic-light module into a real-time status indicator for Claud
 - An Arduino with a traffic-light LED module connected via USB serial
 - Close the Arduino IDE serial monitor before starting the bridge
 
+### Hardware
+
+![Hardware shopping list](images/list.png)
+
 ## Quick Start
 
 ### 1. Start the bridge
@@ -88,6 +92,12 @@ Claude Code hooks ──> hook-client.mjs ──TCP──> serial-bridge.mjs ─
 - **hook-client.mjs** — fire-and-forget TCP client, sends a single command then exits.
 - **serial-bridge.mjs** — long-running TCP server that forwards commands to the serial port.
 - **lib/commands.mjs** — shared command parsing and validation.
+
+## Tutorial
+
+For a detailed step-by-step tutorial, follow the WeChat Official Account **阿皓AI** (Chinese only).
+
+![WeChat Official Account: 阿皓AI](images/ahao.png)
 
 ## License
 
