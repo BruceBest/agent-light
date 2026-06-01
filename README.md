@@ -16,6 +16,8 @@ Turn an Arduino traffic-light module into a real-time status indicator for Claud
 - An Arduino with a traffic-light LED module connected via USB serial
 - Close the Arduino IDE serial monitor before starting the bridge
 
+> No hardware? Jump to [Software-Only Version](#software-only-version-no-hardware-required).
+
 ### Hardware
 
 ![Hardware shopping list](images/list.jpg)
