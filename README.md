@@ -83,6 +83,28 @@ Blink intervals must be between 50 and 10000 ms.
 | `CLAUDE_LIGHT_THINKING_MS` | `700`         |
 | `CLAUDE_LIGHT_RUNNING_MS`  | `100`         |
 
+## Software-Only Version (No Hardware Required)
+
+If you don't have an Arduino, you can use the built-in desktop GUI traffic light instead. It is built with Rust and [eframe](https://github.com/emilk/egui/tree/master/crates/eframe), rendering a virtual traffic light that floats on top of all windows with a transparent background.
+
+It works by polling the file `/tmp/claude-traffic-light` for the current state (`red`, `yellow`, or `green`).
+
+### Quick Start
+
+```sh
+cargo run
+```
+
+Then configure your Claude Code hooks to write the state to the file:
+
+```sh
+echo "yellow" > /tmp/claude-traffic-light   # thinking
+echo "red"    > /tmp/claude-traffic-light   # running tools
+echo "green"  > /tmp/claude-traffic-light   # idle
+```
+
+The window is always-on-top, borderless, and draggable — just click and drag to reposition it.
+
 ## Architecture
 
 ```

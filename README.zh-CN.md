@@ -85,6 +85,28 @@ npm run light -- R:on
 | `CLAUDE_LIGHT_THINKING_MS` | `700`         |
 | `CLAUDE_LIGHT_RUNNING_MS`  | `100`         |
 
+## 纯软件版（无需硬件）
+
+如果没有 Arduino，可以使用项目内置的桌面 GUI 交通灯。基于 Rust 和 [eframe](https://github.com/emilk/egui/tree/master/crates/eframe) 构建，在桌面上渲染一个透明背景、始终置顶的虚拟交通灯。
+
+工作原理：定时读取 `/tmp/claude-traffic-light` 文件内容来确定当前状态（`red`、`yellow` 或 `green`）。
+
+### 快速开始
+
+```sh
+cargo run
+```
+
+然后配置 Claude Code hooks，将状态写入文件即可：
+
+```sh
+echo "yellow" > /tmp/claude-traffic-light   # 思考中
+echo "red"    > /tmp/claude-traffic-light   # 执行工具
+echo "green"  > /tmp/claude-traffic-light   # 空闲
+```
+
+窗口始终置顶、无边框，点击即可拖拽移动位置。
+
 ## 架构
 
 ```
