@@ -22,9 +22,10 @@ Endpoints:
 
 import sys
 import argparse
+import threading
 
 # Minimal dependencies — only stdlib + pyserial
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 import json
 
 sys.path.insert(0, '/'.join(__file__.rsplit('/', 1)) or '.')
@@ -32,6 +33,7 @@ from traffic_light import TrafficLight
 
 # Shared instance (keeps serial connection open)
 _tl = None
+_tl_lock = threading.Lock()
 
 def get_light():
     global _tl
@@ -58,7 +60,8 @@ class TrafficLightHandler(BaseHTTPRequestHandler):
 
         try:
             tl = get_light()
-            result = tl.send(cmd)
+            with _tl_lock:
+                result = tl.send(cmd)
             self._respond(200, {'ok': True, 'command': cmd, 'result': result})
         except Exception as e:
             self._respond(500, {'error': str(e)})
@@ -66,7 +69,8 @@ class TrafficLightHandler(BaseHTTPRequestHandler):
     def _get_state(self):
         try:
             tl = get_light()
-            resp = tl.send('status')
+            with _tl_lock:
+                resp = tl.send('status')
             if resp.startswith('STATE:'):
                 return resp[6:]
             return resp
@@ -93,13 +97,14 @@ def main():
     # Test serial connection on startup
     try:
         tl = get_light()
-        state = tl.send('status')
+        with _tl_lock:
+            state = tl.send('status')
         print(f"Traffic light connected: {state}")
     except Exception as e:
         print(f"Warning: Could not connect to traffic light: {e}")
         print("Server will start anyway — connect the light and commands will retry.")
 
-    server = HTTPServer((args.host, args.port), TrafficLightHandler)
+    server = ThreadingHTTPServer((args.host, args.port), TrafficLightHandler)
     print(f"Traffic Light API listening on {args.host}:{args.port}")
     print(f"Endpoints: /working /waiting /idle /off /test /status /ping")
 
