@@ -147,6 +147,7 @@ Agent finishes responding
 |-------------|---------|-------|---------|
 | `pre_llm_call` | `working` | 🟢 green blink | Agent processing |
 | `pre_approval_request` | `waiting` | 🔴 red blink | Needs user approval |
+| `post_approval_response` | `working` | 🟢 green blink | Approval granted, resuming |
 | `post_llm_call` | `idle` | 🟡 yellow steady | Agent idle |
 
 Hook scripts run as background subprocesses — they never block the agent.
