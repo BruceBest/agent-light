@@ -47,30 +47,57 @@ class TrafficLight:
         self.timeout = timeout
         self._ser = None
 
-    def _connect(self):
+    def _connect(self, force=False):
         import serial
+        if force and self._ser and self._ser.is_open:
+            self._ser.close()
+            self._ser = None
         if self._ser and self._ser.is_open:
-            return self._ser
+            # Verify the connection is actually alive (not a stale fd from USB hotplug)
+            try:
+                self._ser.write(b'\n')
+                self._ser.flush()
+                time.sleep(0.1)
+                self._ser.reset_input_buffer()  # discard ESP32 "Unknown command:" response
+            except (serial.SerialException, OSError):
+                # Stale connection — close and reconnect below
+                try:
+                    self._ser.close()
+                except Exception:
+                    pass
+                self._ser = None
         if not self.port:
             raise RuntimeError(
                 "No serial port found. Is XIAO ESP32-C3 plugged in?\n"
                 "Set TRAFFIC_LIGHT_PORT=/dev/ttyACM0 to override."
             )
-        self._ser = serial.Serial(self.port, self.baud, timeout=self.timeout)
-        time.sleep(0.5)
-        self._ser.reset_input_buffer()
+        if self._ser is None:
+            self._ser = serial.Serial(self.port, self.baud, timeout=self.timeout)
+            time.sleep(0.5)
+            self._ser.reset_input_buffer()
         return self._ser
 
     def send(self, cmd):
         cmd = cmd.strip().lower()
         if cmd not in self.VALID:
             raise ValueError(f"Unknown command: {cmd}. Valid: {self.VALID}")
-        ser = self._connect()
-        ser.write((cmd + '\n').encode())
-        ser.flush()
-        time.sleep(0.3)
-        resp = ser.read(ser.in_waiting or 256).decode('utf-8', errors='ignore').strip()
-        return resp
+        try:
+            ser = self._connect()
+            ser.write((cmd + '\n').encode())
+            ser.flush()
+            time.sleep(0.3)
+            resp = ser.read(ser.in_waiting or 256).decode('utf-8', errors='ignore').strip()
+            return resp
+        except (OSError, Exception) as e:
+            # Stale serial connection (e.g. USB hotplug) — force reconnect and retry once
+            if isinstance(e, OSError) or 'write failed' in str(e) or 'Input/output error' in str(e):
+                ser = self._connect(force=True)
+                ser.write((cmd + '\n').encode())
+                ser.flush()
+                time.sleep(0.3)
+                resp = ser.read(ser.in_waiting or 256).decode('utf-8', errors='ignore').strip()
+                return resp
+            raise
 
     def close(self):
         if self._ser and self._ser.is_open:
