@@ -39,8 +39,6 @@ Connect the Adeept traffic light module to the ESP32-C3 with Dupont wires:
 > ⚠️ The Adeept module has built-in current-limiting resistors. No external resistors needed.
 > ⚠️ The module is common cathode — `HIGH` turns the LED on, `LOW` turns it off.
 
-![Hardware wiring](images/list.jpg)
-
 ## Quick Start
 
 ### 1. Install dependencies
