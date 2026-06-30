@@ -214,7 +214,11 @@ TRAFFIC_LIGHT_PORT=/dev/ttyACM0 python3 scripts/traffic_light_server.py  # overr
 cp scripts/traffic-light-api.service ~/.config/systemd/user/
 sed -i "s|HOME_DIR|$HOME|g" ~/.config/systemd/user/traffic-light-api.service
 
+# Enable boot-time auto-start (starts before login)
+loginctl enable-linger
+
 # Enable and start
+systemctl --user daemon-reload
 systemctl --user enable traffic-light-api.service
 systemctl --user start traffic-light-api.service
 ```
@@ -224,7 +228,7 @@ systemctl --user start traffic-light-api.service
 ```
 agent-light/
 ├── firmware/
-│   ├── main/traffic_light.ino        # Main firmware (serial command handler)
+│   ├── traffic_light/traffic_light.ino # Main firmware (serial command handler)
 │   └── diagnostic/diagnostic.ino     # Pin diagnostic tool
 ├── hermes-hooks/
 │   ├── traffic-light-working.sh      # pre_llm_call → green
@@ -263,10 +267,10 @@ sudo usermod -a -G dialout $USER
 The GPIO pin mapping is wrong. Run the diagnostic firmware:
 
 ```bash
-~/.local/bin/arduino-cli compile --fqbn esp32:esp32:esp32c3 firmware/diagnostic/diagnostic.ino
-sg dialout -c "~/.local/bin/arduino-cli upload --fqbn esp32:esp32:esp32c3 --port /dev/ttyACM0 firmware/diagnostic/diagnostic.ino"
+~/.local/bin/arduino-cli compile --fqbn esp32:esp32:XIAO_ESP32C3 firmware/diagnostic/diagnostic.ino
+sg dialout -c "~/.local/bin/arduino-cli upload --fqbn esp32:esp32:XIAO_ESP32C3 --port /dev/ttyACM0 firmware/diagnostic/diagnostic.ino"
 # Watch which LED lights up at each step
-# Then update pin definitions in firmware/main/traffic_light.ino
+# Then update pin definitions in firmware/traffic_light/traffic_light.ino
 ```
 
 ### Cannot reach remote API server

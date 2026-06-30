@@ -144,9 +144,9 @@ if [ "$MODE" = "local" ]; then
     echo "▸ Flashing firmware..."
 
     "$ARDUINO_CLI" compile --fqbn esp32:esp32:XIAO_ESP32C3 \
-        "$PROJECT_DIR/firmware/main/traffic_light.ino" 2>/dev/null
+        "$PROJECT_DIR/firmware/traffic_light" 2>/dev/null
 
-    sg dialout -c "$ARDUINO_CLI upload --fqbn esp32:esp32:XIAO_ESP32C3 --port $PORT $PROJECT_DIR/firmware/main/traffic_light.ino" 2>/dev/null
+    sg dialout -c "$ARDUINO_CLI upload --fqbn esp32:esp32:XIAO_ESP32C3 --port $PORT $PROJECT_DIR/firmware/traffic_light" 2>/dev/null
 
     ok "Firmware flashed to $PORT"
     echo ""
