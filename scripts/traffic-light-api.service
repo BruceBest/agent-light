@@ -1,0 +1,13 @@
+[Unit]
+Description=Hermes Traffic Light API Server
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 HOME_DIR/agent-light/scripts/traffic_light_server.py --port 9090
+Restart=on-failure
+RestartSec=5
+Environment=TRAFFIC_LIGHT_PORT=/dev/ttyACM0
+
+[Install]
+WantedBy=default.target

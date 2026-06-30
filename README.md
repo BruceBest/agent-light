@@ -39,73 +39,112 @@ Connect the Adeept traffic light module to the ESP32-C3 with Dupont wires:
 > ⚠️ The Adeept module has built-in current-limiting resistors. No external resistors needed.
 > ⚠️ The module is common cathode — `HIGH` turns the LED on, `LOW` turns it off.
 
-## Quick Start
+## Two Modes
 
-### 1. Install dependencies
+The traffic light supports two modes — **local** (light on the same machine as Hermes) and **remote** (light on a different machine, connected via Tailscale/LAN).
+
+### Local Mode
+
+```
+Hermes (this machine) → hook → serial → USB → ESP32-C3 → light
+```
+
+The light plugs directly into the machine running Hermes. Simplest setup.
+
+### Remote Mode
+
+```
+Hermes (desktop) → hook → curl → Tailscale/LAN → API server (laptop) → serial → USB → light
+```
+
+The light plugs into a different machine (e.g. your laptop). Hermes hooks send HTTP requests over Tailscale to a small API server on the light machine.
+
+**Why remote?** You want the light next to you (on your laptop) while Hermes runs on a headless server (in a closet, cloud, etc).
+
+## Quick Start — Local Mode
 
 ```bash
-# Arduino CLI
+# 1. Install dependencies
 curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | BINDIR=~/.local/bin sh
-
-# ESP32 platform
 ~/.local/bin/arduino-cli core update-index
 ~/.local/bin/arduino-cli core install esp32:esp32
-
-# Python serial library
 pip3 install pyserial
-
-# Add yourself to dialout group (serial port access)
 sudo usermod -a -G dialout $USER
-```
 
-### 2. Clone and set up
-
-```bash
+# 2. Clone and set up
 git clone https://github.com/BruceBest/agent-light.git ~/agent-light
 cd ~/agent-light
-git checkout hermes
 bash scripts/setup.sh
-```
 
-`setup.sh` does everything:
-- Compiles and flashes firmware to the ESP32-C3
-- Tests all three LEDs
-- Installs Hermes shell hook scripts
-- Configures `~/.hermes/config.yaml`
-- Allowlists the hooks
-
-### 3. Restart Hermes gateway
-
-```bash
-# From a SEPARATE terminal (not inside Hermes)
+# 3. Restart Hermes gateway (from a separate terminal)
 hermes gateway restart
 ```
 
-That's it. The light now switches automatically.
+## Quick Start — Remote Mode
+
+### On the light machine (e.g. your laptop):
+
+```bash
+# 1. Install Tailscale
+curl -fsSL https://tailscale.com/install.sh | sh
+sudo tailscale up
+
+# 2. Clone and install dependencies
+git clone https://github.com/BruceBest/agent-light.git ~/agent-light
+cd ~/agent-light
+pip3 install pyserial
+sudo usermod -a -G dialout $USER
+
+# 3. Flash firmware (plug in ESP32-C3 via USB)
+bash scripts/setup.sh   # flashes firmware + tests LEDs
+
+# 4. Start the API server
+python3 scripts/traffic_light_server.py --port 9090
+
+# Note your Tailscale IP:
+tailscale ip -4
+# → e.g. 100.64.0.2
+```
+
+### On the Hermes machine (e.g. your desktop):
+
+```bash
+# 1. Install Tailscale
+curl -fsSL https://tailscale.com/install.sh | sh
+sudo tailscale up
+
+# 2. Clone and set up in remote mode
+git clone https://github.com/BruceBest/agent-light.git ~/agent-light
+cd ~/agent-light
+bash scripts/setup.sh --remote --light-host 100.64.0.2 --light-port 9090
+
+# 3. Restart Hermes gateway (from a separate terminal)
+hermes gateway restart
+```
 
 ## How It Works
 
 ```
 You send a message
   → Hermes fires pre_llm_call
-    → hook script sends "working" over USB serial
+    → hook script curls API server / sends to serial
       → 🟢 green blinks
 
 Agent wants to run sudo/rm/etc
   → Hermes fires pre_approval_request
-    → hook script sends "waiting" over USB serial
+    → hook script curls API server / sends to serial
       → 🔴 red blinks
 
 Agent finishes responding
   → Hermes fires post_llm_call
-    → hook script sends "idle" over USB serial
+    → hook script curls API server / sends to serial
       → 🟡 yellow steady
 ```
 
 ### Hook Event Mapping
 
-| Hermes Event | Serial Command | Light | Meaning |
-|-------------|---------------|-------|---------|
+| Hermes Event | Command | Light | Meaning |
+|-------------|---------|-------|---------|
 | `pre_llm_call` | `working` | 🟢 green blink | Agent processing |
 | `pre_approval_request` | `waiting` | 🔴 red blink | Needs user approval |
 | `post_llm_call` | `idle` | 🟡 yellow steady | Agent idle |
@@ -115,12 +154,18 @@ Hook scripts run as background subprocesses — they never block the agent.
 ## Manual Control
 
 ```bash
+# Local (direct serial)
 python3 scripts/traffic_light.py working  # green blink
 python3 scripts/traffic_light.py waiting  # red blink
 python3 scripts/traffic_light.py idle     # yellow steady
 python3 scripts/traffic_light.py test     # cycle R→Y→G
-python3 scripts/traffic_light.py off      # all off
-python3 scripts/traffic_light.py status   # query state
+
+# Remote (via API)
+curl http://100.64.0.2:9090/working
+curl http://100.64.0.2:9090/waiting
+curl http://100.64.0.2:9090/idle
+curl http://100.64.0.2:9090/test
+curl http://100.64.0.2:9090/ping
 ```
 
 ## Python API
@@ -140,17 +185,39 @@ with TrafficLight() as tl:
     # ... agent work ...
 ```
 
-## Daemon Mode
+## Remote API Server
 
-Watch a PID file and auto-switch based on process liveness:
+Run on the machine with the USB traffic light attached:
 
 ```bash
-python3 scripts/traffic_light.py daemon --pid /tmp/hermes.pid --interval 2
+python3 scripts/traffic_light_server.py              # default port 9090
+python3 scripts/traffic_light_server.py --port 8888  # custom port
+TRAFFIC_LIGHT_PORT=/dev/ttyACM0 python3 scripts/traffic_light_server.py  # override serial port
 ```
 
-- Process alive + heartbeat fresh → 🟢 working
-- Process alive + heartbeat stale → 🔴 waiting
-- Process gone → 🟡 idle
+### Endpoints
+
+| Endpoint | Effect |
+|----------|--------|
+| `GET /working` | 🟢 green blink |
+| `GET /waiting` | 🔴 red blink |
+| `GET /idle` | 🟡 yellow steady |
+| `GET /off` | All off |
+| `GET /test` | Cycle R→Y→G |
+| `GET /status` | Query current state |
+| `GET /ping` | Health check |
+
+### Systemd service (auto-start on boot)
+
+```bash
+# Copy and edit the service file
+cp scripts/traffic-light-api.service ~/.config/systemd/user/
+sed -i "s|HOME_DIR|$HOME|g" ~/.config/systemd/user/traffic-light-api.service
+
+# Enable and start
+systemctl --user enable traffic-light-api.service
+systemctl --user start traffic-light-api.service
+```
 
 ## Project Structure
 
@@ -165,7 +232,9 @@ agent-light/
 │   └── traffic-light-idle.sh         # post_llm_call → yellow
 ├── scripts/
 │   ├── traffic_light.py              # Serial bridge (CLI + Python API + Daemon)
-│   └── setup.sh                      # One-shot installer
+│   ├── traffic_light_server.py       # Remote API server (HTTP → serial)
+│   ├── traffic-light-api.service     # Systemd unit for the API server
+│   └── setup.sh                      # One-shot installer (local + remote modes)
 ├── images/                           # Original photos from upstream
 └── README.md
 ```
@@ -194,36 +263,30 @@ sudo usermod -a -G dialout $USER
 The GPIO pin mapping is wrong. Run the diagnostic firmware:
 
 ```bash
-# Flash diagnostic firmware (tests each pin for 3 seconds)
-~/.local/bin/arduino-cli compile --fqbn esp32:esp32:esp32c3 \
-  firmware/diagnostic/diagnostic.ino
-sg dialout -c "~/.local/bin/arduino-cli upload --fqbn esp32:esp32:esp32c3 \
-  --port /dev/ttyACM0 firmware/diagnostic/diagnostic.ino"
-
+~/.local/bin/arduino-cli compile --fqbn esp32:esp32:esp32c3 firmware/diagnostic/diagnostic.ino
+sg dialout -c "~/.local/bin/arduino-cli upload --fqbn esp32:esp32:esp32c3 --port /dev/ttyACM0 firmware/diagnostic/diagnostic.ino"
 # Watch which LED lights up at each step
-# Then update the pin definitions in firmware/main/traffic_light.ino
+# Then update pin definitions in firmware/main/traffic_light.ino
 ```
 
-> The DORHEA ESP32-C3 Mini labels its pins as GPIO numbers directly (0, 1, 2, ...).
-> If you use a different board (e.g. Seeed XIAO ESP32-C3), check its pinout diagram —
-> the physical pin labeled "D0" may map to a different GPIO number.
+### Cannot reach remote API server
 
-### ESP32-C3 not entering flash mode
+```bash
+# Check Tailscale is connected
+tailscale status
 
-The DORHEA ESP32-C3 Mini has BOOT and RESET buttons. To enter flash mode:
+# Check the API server is running
+curl http://100.64.0.2:9090/ping
 
-1. Hold the **BOOT** button
-2. Tap and release the **RESET** button
-3. Release **BOOT**
-4. Run the upload command
+# Check firewall
+sudo ufw allow 9090/tcp  # if ufw is active
+```
 
 ### Hooks not firing
 
 ```bash
-hermes hooks list
-# Should show 3 hooks, all ✓ allowed
-
-hermes gateway restart  # reload after config changes
+hermes hooks list       # Should show 3 hooks, all ✓ allowed
+hermes gateway restart  # Reload after config changes
 ```
 
 ### Port override
@@ -231,10 +294,6 @@ hermes gateway restart  # reload after config changes
 ```bash
 TRAFFIC_LIGHT_PORT=/dev/ttyACM0 python3 scripts/traffic_light.py test
 ```
-
-## Claude Code Support
-
-The original Claude Code integration from [upstream](https://github.com/eternityspring/agent-light) is available on the `main` branch. This `hermes` branch is specifically for Hermes Agent.
 
 ## Credits
 
