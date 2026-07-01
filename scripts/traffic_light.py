@@ -57,8 +57,9 @@ class TrafficLight:
             try:
                 self._ser.write(b'\n')
                 self._ser.flush()
-                time.sleep(0.1)
-                self._ser.reset_input_buffer()  # discard ESP32 "Unknown command:" response
+                # Wait long enough for ESP32 to respond, THEN discard the echo
+                time.sleep(0.5)
+                self._ser.read(self._ser.in_waiting or 256)  # discard keepalive echo
             except (serial.SerialException, OSError):
                 # Stale connection — close and reconnect below
                 try:

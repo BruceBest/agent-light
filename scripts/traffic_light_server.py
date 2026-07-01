@@ -71,8 +71,12 @@ class TrafficLightHandler(BaseHTTPRequestHandler):
             tl = get_light()
             with _tl_lock:
                 resp = tl.send('status')
-            if resp.startswith('STATE:'):
-                return resp[6:]
+            # ESP32 may echo "Unknown command:" before the actual STATE: response
+            # Parse to extract the STATE: line
+            for line in resp.split('\n'):
+                line = line.strip()
+                if line.startswith('STATE:'):
+                    return line[6:]
             return resp
         except Exception:
             return 'disconnected'
